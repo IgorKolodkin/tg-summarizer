@@ -155,7 +155,6 @@ def main():
         console.print(f"[dim]Found credentials: {ENV_FILE}[/dim]")
         console.print(f"[dim]Found session: {session_file}[/dim]")
         if not Confirm.ask("Reconfigure?", default=False):
-            console.print("[green]Ready! Run: ./summarize --unread[/green]")
             return
         # User wants to reconfigure — get new credentials
         api_id, api_hash = setup_credentials()

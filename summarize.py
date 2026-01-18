@@ -36,6 +36,7 @@ SESSION_NAME = "tg_agent"
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 MAX_CONTEXT_CHARS = 6000  # Safe limit for most models (~1500 tokens)
 DEFAULT_MAX_CHATS = 5  # Limit chats to avoid overwhelming LLM
+DEFAULT_MAX_MESSAGES = 100  # Total messages limit for summarization
 
 
 def check_setup():
@@ -83,20 +84,22 @@ def get_telegram_client(api_id: str, api_hash: str):
     )
 
 
-def fetch_unread_messages(client, max_chats: int = DEFAULT_MAX_CHATS) -> dict:
+def fetch_unread_messages(client, max_chats: int = DEFAULT_MAX_CHATS, max_messages: int = DEFAULT_MAX_MESSAGES) -> dict:
     """Fetch unread messages grouped by chat."""
     messages_by_chat = defaultdict(list)
     chats_processed = 0
+    total_messages = 0
 
     for dialog in client.get_dialogs():
         if dialog.unread_messages_count > 0:
-            if chats_processed >= max_chats:
+            if chats_processed >= max_chats or total_messages >= max_messages:
                 break
 
             chat_name = dialog.chat.title or dialog.chat.first_name or "Unknown"
 
-            # Fetch unread messages (limit to reasonable amount per chat)
-            count = min(dialog.unread_messages_count, 50)
+            # Fetch unread messages (limit per chat and total)
+            remaining = max_messages - total_messages
+            count = min(dialog.unread_messages_count, 50, remaining)
             for msg in client.get_chat_history(dialog.chat.id, limit=count):
                 if msg.text:
                     sender = ""
@@ -107,6 +110,9 @@ def fetch_unread_messages(client, max_chats: int = DEFAULT_MAX_CHATS) -> dict:
                         "text": msg.text,
                         "date": msg.date
                     })
+                    total_messages += 1
+                    if total_messages >= max_messages:
+                        break
 
             chats_processed += 1
 
@@ -313,6 +319,13 @@ Examples:
         metavar="N",
         help=f"Max number of chats to process (default: {DEFAULT_MAX_CHATS})"
     )
+    parser.add_argument(
+        "--max-messages",
+        type=int,
+        default=DEFAULT_MAX_MESSAGES,
+        metavar="N",
+        help=f"Max total messages to summarize (default: {DEFAULT_MAX_MESSAGES})"
+    )
 
     args = parser.parse_args()
 
@@ -349,9 +362,10 @@ Examples:
             progress.add_task("Reading messages from Telegram...", total=None)
 
             if args.unread:
-                messages_by_chat = fetch_unread_messages(client, args.max_chats)
+                messages_by_chat = fetch_unread_messages(client, args.max_chats, args.max_messages)
             else:
-                messages_by_chat = fetch_last_messages(client, args.last, args.chat)
+                limit = min(args.last, args.max_messages)
+                messages_by_chat = fetch_last_messages(client, limit, args.chat)
 
         if not messages_by_chat:
             console.print("[yellow]No messages found.[/yellow]")
