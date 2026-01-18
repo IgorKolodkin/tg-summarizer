@@ -23,9 +23,10 @@ def setup_credentials():
     """Collect Telegram API credentials from user."""
     console.print()
     console.print(Panel.fit(
-        "[bold cyan]Telegram API Setup[/bold cyan]\n\n"
-        "You need API credentials from Telegram.\n"
-        "This is a one-time setup.",
+        "[bold cyan]Telegram API Credentials[/bold cyan]\n\n"
+        "To read your messages, we need API access.\n"
+        "You'll create an 'app' on Telegram's site\n"
+        "and copy two values: api_id and api_hash.",
         border_style="cyan"
     ))
     console.print()
@@ -36,7 +37,7 @@ def setup_credentials():
         console.print()
         console.print("[dim]1. Log in with your phone number[/dim]")
         console.print("[dim]2. Go to 'API development tools'[/dim]")
-        console.print("[dim]3. Create an app (any name/short name)[/dim]")
+        console.print("[dim]3. Create an app (any name works)[/dim]")
         console.print("[dim]4. Copy api_id and api_hash below[/dim]")
         console.print()
 
@@ -46,7 +47,7 @@ def setup_credentials():
 
     # Validate
     if not api_id.isdigit():
-        console.print("[red]Error: api_id must be a number[/red]")
+        console.print("[red]Error: api_id should be a number[/red]")
         sys.exit(1)
 
     if len(api_hash) != 32:
@@ -63,17 +64,9 @@ API_HASH={api_hash}
 OLLAMA_MODEL=qwen2.5:7b
 """
     ENV_FILE.write_text(env_content)
-    console.print(f"[green]Saved credentials to {ENV_FILE}[/green]")
+    console.print(f"[green]Saved to {ENV_FILE}[/green]")
 
     return api_id, api_hash
-
-
-def get_password():
-    """Prompt for 2FA password with hidden input."""
-    import getpass
-    console.print()
-    console.print("[yellow]Two-factor authentication enabled.[/yellow]")
-    return getpass.getpass("Enter 2FA password (hidden): ")
 
 
 def telegram_login(api_id: str, api_hash: str):
@@ -81,17 +74,17 @@ def telegram_login(api_id: str, api_hash: str):
     console.print()
     console.print(Panel.fit(
         "[bold cyan]Telegram Login[/bold cyan]\n\n"
-        "[green]This is safe and legal:[/green]\n"
-        "  - We use official Telegram API (MTProto)\n"
-        "  - Your credentials stay on YOUR device only\n"
-        "  - Session file is stored locally, not sent anywhere\n"
-        "  - You can revoke access anytime in Telegram settings\n\n"
-        "[bold]What will happen:[/bold]\n"
+        "Now we'll authenticate with Telegram.\n"
+        "This uses the official MTProto API — same as\n"
+        "the desktop app. Your session stays local.\n\n"
+        "[green]All messages are processed locally.[/green]\n"
+        "[green]Nothing is sent to external servers.[/green]\n\n"
+        "[bold]What happens next:[/bold]\n"
         "  1. Enter your phone number\n"
-        "  2. Telegram sends you a code (in the app)\n"
+        "  2. Telegram sends a code to your app\n"
         "  3. Enter the code here\n"
-        "  4. If you have 2FA - enter password (hidden)\n\n"
-        "[dim]Press Ctrl+C anytime to cancel[/dim]",
+        "  4. If 2FA enabled — enter password (hidden)\n\n"
+        "[dim]Press Ctrl+C to cancel[/dim]",
         border_style="cyan"
     ))
     console.print()
@@ -106,21 +99,37 @@ def telegram_login(api_id: str, api_hash: str):
     session_path = Path(__file__).parent / SESSION_NAME
 
     try:
-        # Create client with custom password handler for hidden input
+        # Create client (Pyrogram uses getpass internally for 2FA)
         with Client(
             name=str(session_path),
             api_id=int(api_id),
             api_hash=api_hash,
-            workdir=str(Path(__file__).parent),
-            password=get_password  # Callable for hidden password input
+            workdir=str(Path(__file__).parent)
         ) as app:
             me = app.get_me()
             console.print()
-            console.print(f"[green]Logged in as: {me.first_name} (@{me.username or 'no username'})[/green]")
+            console.print(f"[green]Logged in as {me.first_name} (@{me.username or 'no username'})[/green]")
             console.print(f"[dim]Session saved to {session_path}.session[/dim]")
     except KeyboardInterrupt:
-        console.print("\n[yellow]Cancelled by user.[/yellow]")
+        console.print("\n[yellow]Cancelled.[/yellow]")
         sys.exit(0)
+
+
+def get_existing_credentials():
+    """Check if valid credentials exist in .env file."""
+    if not ENV_FILE.exists():
+        return None, None
+
+    from dotenv import load_dotenv
+    load_dotenv(ENV_FILE)
+
+    api_id = os.getenv("API_ID")
+    api_hash = os.getenv("API_HASH")
+
+    if api_id and api_hash and api_id != "your_api_id_here":
+        return api_id, api_hash
+
+    return None, None
 
 
 def main():
@@ -128,34 +137,37 @@ def main():
     console.print("[bold]TG Summarizer Setup[/bold]")
     console.print("=" * 40)
 
-    # Check if already configured
-    if ENV_FILE.exists():
-        from dotenv import load_dotenv
-        load_dotenv(ENV_FILE)
+    session_file = Path(__file__).parent / f"{SESSION_NAME}.session"
+    api_id, api_hash = get_existing_credentials()
 
-        api_id = os.getenv("API_ID")
-        api_hash = os.getenv("API_HASH")
+    # Case 1: Fully configured (credentials + session)
+    if api_id and api_hash and session_file.exists():
+        console.print(f"[dim]Found credentials: {ENV_FILE}[/dim]")
+        console.print(f"[dim]Found session: {session_file}[/dim]")
+        if not Confirm.ask("Reconfigure?", default=False):
+            console.print("[green]Ready! Run: ./summarize --unread[/green]")
+            return
+        # User wants to reconfigure — get new credentials
+        api_id, api_hash = setup_credentials()
 
-        if api_id and api_hash and api_id != "your_api_id_here":
-            console.print(f"[dim]Found existing config in {ENV_FILE}[/dim]")
+    # Case 2: Have credentials but no session — just need to login
+    elif api_id and api_hash:
+        console.print(f"[dim]Found credentials: {ENV_FILE}[/dim]")
+        console.print("[dim]Session not found, need to login.[/dim]")
 
-            session_file = Path(__file__).parent / f"{SESSION_NAME}.session"
-            if session_file.exists():
-                console.print(f"[dim]Found existing session: {session_file}[/dim]")
-                if not Confirm.ask("Reconfigure?", default=False):
-                    console.print("[green]Setup complete! Run: python summarize.py --help[/green]")
-                    return
+    # Case 3: No credentials — full setup
+    else:
+        api_id, api_hash = setup_credentials()
 
-    # Run setup
-    api_id, api_hash = setup_credentials()
+    # Login to Telegram
     telegram_login(api_id, api_hash)
 
     console.print()
     console.print(Panel.fit(
         "[bold green]Setup Complete![/bold green]\n\n"
         "Try it now:\n"
-        "  [cyan]python summarize.py --last 10[/cyan]\n"
-        "  [cyan]python summarize.py --unread[/cyan]",
+        "  [cyan]./summarize --unread[/cyan]\n"
+        "  [cyan]./summarize --last 20[/cyan]",
         border_style="green"
     ))
 
