@@ -4,12 +4,10 @@
 
 **Всё работает локально** — никакие данные не отправляются в облако.
 
-## Быстрый старт (3 шага)
-
-### 1. Установка
+## Установка (одна команда)
 
 ```bash
-./install.sh
+git clone https://github.com/IgorKolodkin/tg-summarizer.git && cd tg-summarizer && ./install.sh
 ```
 
 Скрипт автоматически:
@@ -17,24 +15,14 @@
 - Установит Ollama (если нет)
 - Скачает AI модель (~4.7 GB)
 - Установит зависимости Python
-
-### 2. Настройка Telegram
-
-```bash
-source .venv/bin/activate
-python setup.py
-```
-
-Тебе нужно будет:
-1. Зайти на https://my.telegram.org/apps
-2. Создать приложение и получить `api_id` + `api_hash`
-3. Залогиниться с номером телефона
+- Запустит настройку Telegram
 
 > **Это безопасно**: используется официальный Telegram API, все данные остаются на твоём компьютере.
 
-### 3. Использование
+## Использование
 
 ```bash
+cd tg-summarizer
 ./summarize --unread
 ```
 

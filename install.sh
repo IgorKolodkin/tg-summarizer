@@ -23,7 +23,7 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 # 1. Check Python 3.8+
-echo -e "${YELLOW}[1/6] Checking Python...${NC}"
+echo -e "${YELLOW}[1/7] Checking Python...${NC}"
 if command -v python3 &> /dev/null; then
     PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
     PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
@@ -43,7 +43,7 @@ else
 fi
 
 # 2. Check/Install Ollama
-echo -e "${YELLOW}[2/6] Checking Ollama...${NC}"
+echo -e "${YELLOW}[2/7] Checking Ollama...${NC}"
 if command -v ollama &> /dev/null; then
     echo -e "  ${GREEN}Ollama installed${NC}"
 else
@@ -66,7 +66,7 @@ else
 fi
 
 # 3. Start Ollama if not running
-echo -e "${YELLOW}[3/6] Starting Ollama...${NC}"
+echo -e "${YELLOW}[3/7] Starting Ollama...${NC}"
 if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
     echo -e "  ${GREEN}Ollama is running${NC}"
 else
@@ -84,7 +84,7 @@ fi
 
 # 4. Download LLM model
 MODEL="qwen2.5:7b"
-echo -e "${YELLOW}[4/6] Downloading LLM model ($MODEL, ~4.7GB)...${NC}"
+echo -e "${YELLOW}[4/7] Downloading LLM model ($MODEL, ~4.7GB)...${NC}"
 if ollama list | grep -q "qwen2.5"; then
     echo -e "  ${GREEN}Model $MODEL already downloaded${NC}"
 else
@@ -94,7 +94,7 @@ else
 fi
 
 # 5. Setup Python environment
-echo -e "${YELLOW}[5/6] Setting up Python environment...${NC}"
+echo -e "${YELLOW}[5/7] Setting up Python environment...${NC}"
 cd "$SCRIPT_DIR"
 
 # Create venv if not exists
@@ -109,7 +109,7 @@ pip install -q -r requirements.txt
 echo -e "  ${GREEN}Dependencies installed${NC}"
 
 # 6. Create launcher script
-echo -e "${YELLOW}[6/6] Creating launcher...${NC}"
+echo -e "${YELLOW}[6/7] Creating launcher...${NC}"
 cat > summarize << 'LAUNCHER'
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -120,18 +120,20 @@ LAUNCHER
 chmod +x summarize
 echo -e "  ${GREEN}Launcher created${NC}"
 
+# 7. Configure Telegram
+echo -e "${YELLOW}[7/7] Configuring Telegram...${NC}"
+echo ""
+python setup.py
+
 # Done!
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════╗"
 echo -e "║         Installation Complete!        ║"
 echo -e "╚═══════════════════════════════════════╝${NC}"
 echo ""
-echo -e "Next steps:"
-echo -e "  ${CYAN}1.${NC} Configure Telegram API:"
-echo -e "     ${YELLOW}cd $SCRIPT_DIR && source .venv/bin/activate && python setup.py${NC}"
-echo ""
-echo -e "  ${CYAN}2.${NC} After setup, use:"
-echo -e "     ${YELLOW}./summarize --unread${NC}        # Summarize unread messages"
-echo -e "     ${YELLOW}./summarize --last 50${NC}      # Summarize last 50 messages"
-echo -e "     ${YELLOW}./summarize --list-chats${NC}   # List your chats"
+echo -e "Usage:"
+echo -e "  ${YELLOW}cd $SCRIPT_DIR${NC}"
+echo -e "  ${YELLOW}./summarize --unread${NC}        # Summarize unread messages"
+echo -e "  ${YELLOW}./summarize --last 50${NC}       # Summarize last 50 messages"
+echo -e "  ${YELLOW}./summarize --list-chats${NC}    # List your chats"
 echo ""
