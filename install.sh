@@ -82,16 +82,56 @@ else
     fi
 fi
 
-# 4. Download LLM model
-MODEL="qwen2.5:7b"
-echo -e "${YELLOW}[4/7] Downloading LLM model ($MODEL, ~4.7GB)...${NC}"
-if ollama list | grep -q "qwen2.5"; then
-    echo -e "  ${GREEN}Model $MODEL already downloaded${NC}"
-else
-    echo -e "  ${YELLOW}This may take a few minutes...${NC}"
-    ollama pull $MODEL
-    echo -e "  ${GREEN}Model downloaded${NC}"
+# 4. LLM Model Setup
+echo -e "${YELLOW}[4/7] LLM Model Setup...${NC}"
+echo ""
+
+# Show installed models
+INSTALLED_MODELS=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+if [ -n "$INSTALLED_MODELS" ]; then
+    echo "Installed models:"
+    echo "$INSTALLED_MODELS" | nl -w2 -s") "
+    echo ""
 fi
+
+# Model selection menu
+echo "Options:"
+echo "  1) Use existing model (enter name)"
+echo "  2) Download llama3.2 (~2GB, recommended)"
+echo "  3) Download qwen2.5:7b (~4.7GB, better quality)"
+echo ""
+read -p "Choose [1-3, default=2]: " MODEL_CHOICE
+
+case $MODEL_CHOICE in
+    1)
+        read -p "Enter model name: " MODEL
+        if [ -z "$MODEL" ]; then
+            MODEL="llama3.2"
+            echo -e "  ${YELLOW}No model specified, using llama3.2${NC}"
+            ollama pull $MODEL
+        fi
+        ;;
+    3)
+        MODEL="qwen2.5:7b"
+        if ollama list | grep -q "qwen2.5"; then
+            echo -e "  ${GREEN}Model $MODEL already downloaded${NC}"
+        else
+            echo -e "  ${YELLOW}Downloading $MODEL...${NC}"
+            ollama pull $MODEL
+        fi
+        ;;
+    *)
+        MODEL="llama3.2"
+        if ollama list | grep -q "llama3.2"; then
+            echo -e "  ${GREEN}Model $MODEL already downloaded${NC}"
+        else
+            echo -e "  ${YELLOW}Downloading $MODEL...${NC}"
+            ollama pull $MODEL
+        fi
+        ;;
+esac
+echo -e "  ${GREEN}Using model: $MODEL${NC}"
+export OLLAMA_MODEL=$MODEL
 
 # 5. Setup Python environment
 echo -e "${YELLOW}[5/7] Setting up Python environment...${NC}"
@@ -127,13 +167,5 @@ python setup.py
 
 # Done!
 echo ""
-echo -e "${GREEN}╔═══════════════════════════════════════╗"
-echo -e "║         Installation Complete!        ║"
-echo -e "╚═══════════════════════════════════════╝${NC}"
-echo ""
-echo -e "Usage:"
-echo -e "  ${YELLOW}cd $SCRIPT_DIR${NC}"
-echo -e "  ${YELLOW}./summarize --unread${NC}        # Summarize unread messages"
-echo -e "  ${YELLOW}./summarize --last 50${NC}       # Summarize last 50 messages"
-echo -e "  ${YELLOW}./summarize --list-chats${NC}    # List your chats"
+echo -e "${GREEN}Done!${NC} Run: ${CYAN}./summarize --unread${NC}"
 echo ""

@@ -4,10 +4,14 @@ Interactive setup wizard for Telegram API credentials.
 Opens browser for API registration, collects credentials, and performs first login.
 """
 
+import logging
 import os
 import sys
 import webbrowser
 from pathlib import Path
+
+# Suppress Pyrogram banner and verbose output
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 from rich.console import Console
 from rich.panel import Panel
@@ -15,7 +19,9 @@ from rich.prompt import Prompt, Confirm
 
 console = Console()
 
-ENV_FILE = Path(__file__).parent / ".env"
+# Store credentials outside project directory (survives reinstall)
+CONFIG_DIR = Path.home() / ".config" / "tg-summarizer"
+ENV_FILE = CONFIG_DIR / ".env"
 SESSION_NAME = "tg_agent"
 
 
@@ -55,14 +61,16 @@ def setup_credentials():
         if not Confirm.ask("Continue anyway?", default=False):
             sys.exit(1)
 
-    # Save to .env
+    # Save to .env (use model from environment or default)
+    model = os.getenv("OLLAMA_MODEL", "llama3.2")
     env_content = f"""# Telegram API credentials
 API_ID={api_id}
 API_HASH={api_hash}
 
-# LLM model (qwen2.5:7b, llama3.2, mistral)
-OLLAMA_MODEL=qwen2.5:7b
+# LLM model (llama3.2, qwen2.5:7b, mistral)
+OLLAMA_MODEL={model}
 """
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     ENV_FILE.write_text(env_content)
     console.print(f"[green]Saved to {ENV_FILE}[/green]")
 
@@ -96,7 +104,8 @@ def telegram_login(api_id: str, api_hash: str):
         console.print("[red]Error: pyrogram not installed. Run: pip install pyrogram tgcrypto[/red]")
         sys.exit(1)
 
-    session_path = Path(__file__).parent / SESSION_NAME
+    session_path = CONFIG_DIR / SESSION_NAME
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         # Create client (Pyrogram uses getpass internally for 2FA)
@@ -104,12 +113,13 @@ def telegram_login(api_id: str, api_hash: str):
             name=str(session_path),
             api_id=int(api_id),
             api_hash=api_hash,
-            workdir=str(Path(__file__).parent)
+            workdir=str(CONFIG_DIR),
+            hide_password=True  # Hide 2FA password input
         ) as app:
             me = app.get_me()
             console.print()
             console.print(f"[green]Logged in as {me.first_name} (@{me.username or 'no username'})[/green]")
-            console.print(f"[dim]Session saved to {session_path}.session[/dim]")
+            console.print("[dim]Session saved[/dim]")
     except KeyboardInterrupt:
         console.print("\n[yellow]Cancelled.[/yellow]")
         sys.exit(0)
@@ -137,7 +147,7 @@ def main():
     console.print("[bold]TG Summarizer Setup[/bold]")
     console.print("=" * 40)
 
-    session_file = Path(__file__).parent / f"{SESSION_NAME}.session"
+    session_file = CONFIG_DIR / f"{SESSION_NAME}.session"
     api_id, api_hash = get_existing_credentials()
 
     # Case 1: Fully configured (credentials + session)
@@ -161,15 +171,6 @@ def main():
 
     # Login to Telegram
     telegram_login(api_id, api_hash)
-
-    console.print()
-    console.print(Panel.fit(
-        "[bold green]Setup Complete![/bold green]\n\n"
-        "Try it now:\n"
-        "  [cyan]./summarize --unread[/cyan]\n"
-        "  [cyan]./summarize --last 20[/cyan]",
-        border_style="green"
-    ))
 
 
 if __name__ == "__main__":

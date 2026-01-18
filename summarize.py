@@ -22,15 +22,18 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.tree import Tree
 
+# Credentials stored outside project directory (survives reinstall)
+CONFIG_DIR = Path.home() / ".config" / "tg-summarizer"
+ENV_FILE = CONFIG_DIR / ".env"
+
 # Load environment
-ENV_FILE = Path(__file__).parent / ".env"
 load_dotenv(ENV_FILE)
 
 console = Console()
 
 # Constants
 SESSION_NAME = "tg_agent"
-DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 MAX_CONTEXT_CHARS = 6000  # Safe limit for most models (~1500 tokens)
 DEFAULT_MAX_CHATS = 5  # Limit chats to avoid overwhelming LLM
 
@@ -45,7 +48,7 @@ def check_setup():
         console.print("Run: [cyan]python setup.py[/cyan]")
         sys.exit(1)
 
-    session_file = Path(__file__).parent / f"{SESSION_NAME}.session"
+    session_file = CONFIG_DIR / f"{SESSION_NAME}.session"
     if not session_file.exists():
         console.print("[red]Error: Telegram session not found.[/red]")
         console.print("Run: [cyan]python setup.py[/cyan]")
@@ -71,12 +74,12 @@ def get_telegram_client(api_id: str, api_hash: str):
     """Create Pyrogram client."""
     from pyrogram import Client
 
-    session_path = Path(__file__).parent / SESSION_NAME
+    session_path = CONFIG_DIR / SESSION_NAME
     return Client(
         name=str(session_path),
         api_id=int(api_id),
         api_hash=api_hash,
-        workdir=str(Path(__file__).parent)
+        workdir=str(CONFIG_DIR)
     )
 
 
